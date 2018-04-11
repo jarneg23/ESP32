@@ -1,6 +1,6 @@
 Secure Boot
 ==================
-secure boot는 chip에서 code만 실행할 수 있도록 하능 기능으로 매 reset시 flash에서 load된 data는 verified되어 진다.
+secure boot는 chip에서 code만 실행할 수 있도록 하는 기능으로 매 reset시 flash에서 load된 data는 verified되어 진다.
 
 Background
 ------------------
@@ -11,23 +11,23 @@ Background
 * 초기 소프트웨어 bootloader를 load하거나  subsequence partition & app을 로드하는 boot process 두 단계는 secure boot process에 의해 "chain of trust" 관계로 확인된다.
 
 
-Secure Boot Process Overvie
+Secure Boot Process Overview
 -----------------------------
 
 1. make menuconfig 계층구조안에 제공되는 "Secure Boot Configuration" 아래의 secure boot를 활성화 한다.
 
 2. Secure Boot는 기본적으로 build 과정에서 parition table 데이터와 image에 signing하는 것이다.
- "Secure boot pribate signing key" 구성 항목은 PEM 형식이 파일의 ECDSA 공개/개인 키 쌍에 대한 파일 경로이다.
+ "Secure boot private signing key" 구성 항목은 PEM 형식 파일의 ECDSA 공개/개인 키 쌍에 대한 파일 경로이다.
 
-3. software bootloader image는 esp-idf에서 보안 부팅 지원이 활성화되고 보안 부팅 서명키의 공개키 부분이 컴파일 된 상태로 만들어 진다. 이 이미지는 flash의 0x1000 offset에 저장된다.
+3. software bootloader image는 esp-idf에서 보안 부팅 지원이 활성화되고 secure boot signing key의 공개키 부분이 컴파일 된 상태로 만들어 진다. 이 이미지는 flash의 0x1000 offset에 저장된다.
 
 4. 첫 번째 부팅에서 software bootloader는 secure boot을 활성화하기 위해서 다음과 같은 과정을 따른다.
-<br>1) 하드웨어 보안 부팅 지원은 장치 보안 bootloader 키 (하드웨어 RNG를 통해 생성되고 efuse안에 read/write proteced되어 저장) 와 secure digest를 생성한다. digest는 ket,IV, bootloader image contents로부터 파생된다.
+<br>1) hardware secure boot support은 장치 보안 bootloader 키 (하드웨어 RNG를 통해 생성되고 efuse안에 read/write proteced되어 저장) 와 secure digest를 생성한다. digest는 key,IV, bootloader image contents로부터 파생된다.
 <br>2) secure digest는 flash의 0x0에 저장
 <br>3) 보안 부팅 구성에 따라, efuse는 JTAG, ROM BASIC interpreter를 비활성화하기 위해 구워진다.
 <br>4) ABS_DONE_0 efuse를 굽는 것으로 bootloader는 영구적으로 secure boot를 사용할 수 있다. software bootloader 보호되어 진다.
 
-5. 후속 부팅시에는 ROM bootloader는 secure boot efuse가 구워지고 0x0에 저장된 digest를 읽고 하드웨어 secure boot support을 사용하여 새롭게 계산된 digest와 비교한다. -> digest가 일치하지 않는 다면 부팅을 계속 한다. (digest와 비교는 전적으로 하드웨어에서 수행되어진다, 그리고 계산된 digest는 소프트웨어로 읽을 수 없다.)
+5. 후속 부팅시에는 ROM bootloader는 secure boot efuse가 구워졋는지 확인하고 0x0에 저장된 digest를 읽고 hardware secure boot support을 사용하여 새롭게 계산된 digest와 비교한다. -> digest가 일치하지 않는 다면 부팅을 계속 한다. (digest와 비교는 전적으로 하드웨어에서 수행되어진다, 그리고 계산된 digest는 소프트웨어로 읽을 수 없다.)
 
 6. secure boot mode가 실행될 때 software bootloader는 secure boot signing key를 모든 subsequence partition tables, app image가 부팅되기전에 추가된 서명을 확인하기 위해 사용한다.
 
@@ -85,7 +85,7 @@ production build 환경에서 build machine에 signing key를 사용하는 것 �
 <br>remote signing을 사용하려면 구성에 "Sign binaries during build" 옵션을 비활성화 해라. private signing key는 build system에 있을 필요가 없다 하지만 public key는 bootloader에 컴파일 되어 있기 때문에 필요하다 (OTA 업데이트에 image sign을 확인 하는데 사용).
 
 private key로 부터 public key를 추출하는 방법
-> espscure.py extract_public_key --keyfile PRIVATE_SIGNING_KEY PUBLIC_VERIFICATION_KEY
+> espsecure.py extract_public_key --keyfile PRIVATE_SIGNING_KEY PUBLIC_VERIFICATION_KEY
 
 public signature verifivation key의 경로가 secure bootloader를 build하기 위해 menuconfig 아래의 "Secure boot public signature verification key"에 설정될 필요가 있다.
 
@@ -99,7 +99,7 @@ App image와 partition table이 build된 이후에 build system은 espsecure.py�
 Secure Boot Best Practice
 ----------------------------------------
 * 시스템에 signing key를 생성
-* 매 순간 signing key를 private하게 유지.\
+* 매 순간 signing key를 private하게 유지.
 * espsecure.py를 사용하여 제 3자가 key 생성 또는 signing process의 모든 측면을 관찰하는 것을 금지해라.
 * Secure Boot Configuration의 모든 secure boot 옵션을 활성화 해라. 여기에는 플래시 암호화, JTAG 비활성화, BASIC ROM 인터프리터 비활성화 및 UART 부트 로더 암호화 플래시 액세스 비활성화가 포함됩니다.
 * flsh contents가 읽혀지는 것을 막기 위해서 flash encryption과 함께 secure boot을 사용해라.

@@ -45,7 +45,7 @@ Application binary image는 flash 시작 주소 0x1000에서 불려진다. 첫 f
 Second stage bootloader
 -----------------------------
 flash에 0x1000 offset에 위치한 Binary image가 second stage bootloader이다. Second stage bootloader source code는 components/bootloader directory에서 이용할 수 있다. 
-<br> Second stage bootloader는  flash layout에 유연성을 추가하고 flash encryption, secure boot, OTA update와 관련된 다양한 flow를 허용한다.
+<br> Second stage bootloader는 flash layout에 유연성을 추가하고 flash encryption, secure boot, OTA update와 관련된 다양한 flow를 허용한다.
 
 Second stage bootloader는 offset 0x8000에 있는 partition table을 읽는다. 그리고 OTA info partition에 있는 data에 기반하여 부팅될 partition을 찾는다. 선택한 partition에 대해서 Second stage bootloader는 IRAM 및 DRAM에 매핑 된 데이터 섹션과 코드 섹션을 load address에 복사한다. Second stage bootloader는 PRO CPU와 APP CPU 모두에 flash MMU 설정하지만 PRO CPU의 flash MMU만 사용할 수 있다. 그 이유는 Second stage bootloader code가 APP CPU cache에 의해 사용되어지는 메모리 공간에 불려지기 때문이다. APP CPU의 캐시를 활성화하는 것은 application의 역할이다. code가 load되고 flash mmu가 설정이 되면 Second stage bootloader가 binary image header에 있는 application의 entry point로 이동한다.
 <br>(mmu : 메모리 관리 장치, 가상 메모리 -> 실제 메모리 주소로 변환)
@@ -56,7 +56,7 @@ ESP-IDF application의 entry point는 call_start_cpu0 함수 이다. 이 함수�
 <br>start_cpu0와 start_cpu1은 응용프로그램마다 초기화 시퀀스를 변경해야하는 경우 응용 프로그램에서 재정의 할수있다. start_cpu0의 기본 구성은 menuconfig에 선택에 따라 구성요소를 초기화하고 활성화 한다.
 모든 구성요소들이 초기화되면 main task가 생성되고 FreeRTOS 스케쥴러가 시작된다.
 
-PRO CPU가 start_cpu0함수 안에서 초기화되는 동안 start_cpu1 함수의 APP CPU spin은 PRO CPU위에서 시작되어지기 위해 스케쥴러를 기다린다. 한번 스케쥴러가 PRO CPU위에 시작되어지면 APP CPU의 code가 스케쥴러에 의해 시작된다.
+PRO CPU가 start_cpu0 함수 안에서 초기화되는 동안 start_cpu1 함수의 APP CPU spin은 PRO CPU위에서 시작되어지기 위해 스케쥴러를 기다린다. 한번 스케쥴러가 PRO CPU위에 시작되어지면 APP CPU의 code가 스케쥴러에 의해 시작된다.
 
 Main task는 app_main 함수가 실행되는 task이다. menuconfig에서 stack 사이즈와 우선순위를 설정할 수있다.
 
@@ -68,6 +68,7 @@ ESP32 chip은 flexible memory mapping 기능을 가지고 있으며 application 
 1. IRAM(instruction RAM) : 내부 SRAM0 영역의 일부를 instruction RAM에 할당한다. PRO,APP CPU 캐시에 사용되는 처음 64kb 블럭을 제외한 나머지 메모리 범위는 RAM에서 실행해야하는 응용프로그램의 일부를 저장하는데 사용된다.
 
 > 일부 application code를 IRAM에 배치해야 할 경우 IRAM_ATTR define을 사용하여 수행 할 수 있다.
+
 <pre><code>#include "esp_attr.h"
 void IRAM_ATTR gpio_isr_handler(void* arg)
 {
@@ -82,7 +83,7 @@ void IRAM_ATTR gpio_isr_handler(void* arg)
 * flash로부터 code를 불러오는 것과 관련한 단점을 줄이기 위해서 IRAM에 timing critical code를 저장한다.
 esp32는 32kb cache를 통해 flash로부터 data와 code를 읽는다. 몇몇의 경우 IRAM에 저장된 함수는 cache miss에 의해 발생하는 delay를 줄일수 있다.
 
-2. IROM(code executed from Flash) : 함수가 명시적으로 IRAM or RTC 메모리에 위치하지 않는다면 flash안에 위치한다. ESP-IDF 는 은 0x400f0000 - 0x40400000 영역의 시작 부분부터 flash에서 실행되어야 하는 코드를 배치한다. 위 시작시 Second stage bootloader는 플래시 MMU를 초기화하고 코드가있는 위치를이 영역의 시작 부분에 매핑합니다. 이 영역에 대한 접근은 0x40070000 - 0x40080000 범위의 두 개의 32kb 블럭을 사용하여 cache된다.
+2. IROM(code executed from Flash) : 함수가 명시적으로 IRAM or RTC 메모리에 위치하지 않는다면 flash안에 위치한다. ESP-IDF 는 은 0x400f0000 - 0x40400000 영역의 시작 부분부터 flash에서 실행되어야 하는 코드를 배치한다. 위 시작시 Second stage bootloader는 플래시 MMU를 초기화하고 코드가있는 위치를 이 영역의 시작 부분에 매핑합니다. 이 영역에 대한 접근은 0x40070000 - 0x40080000 범위의 두 개의 32kb 블럭을 사용하여 cache된다.
 
 3. RTC fast memory : deep sleep mode에서 깨어난 이후 실행되는 code는 RTC memory 안에 저장된다.
 
