@@ -30,7 +30,7 @@ Flash Encryption process
 ------------------------------
 1. make menuconfig -> Security Feautre -> Enamble flash encryption on boot 활성화
 
-2. bootloader flash and build -> 초기에는 비암호화 상태로 flash에 쓰여진다.
+2. make flash and build -> 초기에는 비암호화 상태로 flash에 쓰여진다.
 
 3. 초기 부팅시 부트 로더는 FLASH_CRYPT_CNT efuse가 0 (공장 기본값)으로 설정되어 있는지 확인하고 하드웨어 Random Number 생성기를 사용하여 플래시 암호화 키를 생성합니다.
 
@@ -142,14 +142,83 @@ Serial Re-Flashing Procedure
 4) espefuse.py burn_efuse FLASH_CRYPT_CNT 명령어를 실행하여 FLASH_CRYPT_CNT efuse를 굽는다.
 -> 자동으로 bit count를 1 증가 시킨다.
 
-5) device를 Reset한다 그리고 plaintext partition을 재 암호화 한다 -> FLASH_CRYPT_CNT efuse가 다시 암호화 할수 있게 된다.
+5) device를 Reset한다 그리고 plaintext partition을 재 암호화 한 후 FLASH_CRYPT_CNT efuse를 다시 구워서 다시 암호화를 활성화 한다.
 
+
+Disabling Serial Updates
+--------------------------
+Serial을 통해 plaintext가 업데이트 되는 것을 방지하기 위해 처음 booting이 완료되고 flash 암호화가 활성화된 이후 FLASH_CRYPT_CNT efuse가 write protect 되도록 espefuse.py를 사용한다 
+
+>espefuse.py --port PORT write_protect_efuse FLASH_CRYPT_CNT
+
+이로 인해 flash 암호화를 다시 활성화 비활성화 할 수 없습니다.
 
 Reflashing via Pregenerated Flash Encryption Key
 --------------------------
 호스트 컴퓨터에서 flash 암호화 키를 미리 생성하여 ESP32의 efuse 키 블럭에 구워서 일반 Plaintext flash update없이 esp32로 flash를 할 수 있다.
 
-다만 이 경우 제품을 위한 암호화를 사전 생성할 때 고품질의 난수 생성프로그램으로 키를 생성하고 여러 장치에서 동일한 flash 암호화 키를 공유하지 않도록 해야 한다.
+bootloader가 매번 reflash될 필요가 없기 때문에 secure boot가 활성화된 경우 4 번의 reflash 제한을 제거할 수 있어서 유용하다.
+
+<h4>다만 이 경우 제품을 위한 암호화를 사전 생성할 때 고품질의 난수 생성프로그램으로 키를 생성하고 여러 장치에서 동일한 flash 암호화 키를 공유하지 않도록 해야 한다.
+
+Pregenerating a Flash Encryption Key
+-------------------------------------
+Flash 암호화 키는 32 바이트 random data 이며
+>espsecure.py generate_flash_encryption_key my_flash_encryption_key.bin
+
+위 명령어를 통해 생성할 수 있다.
+
+만약 아래 명령어를 사용하여 secure boot를 사용하며 secure boot signing key를 가지고 있는 환경에서 flash 암호화 키로 사용할 수 있게 secure boot signing key에서 중요한 SHA-256 digest를 생성할 수 있다.
+>espsecure.py digest_private-key --keyfile secure_boot_signing_key.pem my_flash_encryption_key.bin
+
+secure boot의 reflashable mode가 활성화되어 있다면 같은 32바이트를 secure boot digest key로 사용할 수 있다.
+
+Burning Flash Encryption Key
+-------------------------------------
+한번 flash 암호화 키를 생성했다면 ESP32의 efuse key block에 암호화 키를 구울 필요가 있다. 이 작업은 반드시 첫 암호화 booting 전에 해야한다. 그렇지 않으면 ESP32가 software가 접근 수정할 수 없는 임의의 키값을 생성한다.
+
+> espefuse.py --port PORT burn_key flash_encryption my_flash_encryption_key.bin
+
+Reflashing with pregenerated key
+-------------------------------------
+첫 부팅에서 암호화가 활성화된 이후 암호화된 image reflashing은 추가적인 메뉴얼 단계를 요구한다.
+plaintext data를 flash 하기 위해 사용하는 일반적인 command는 아래와 같다.
+
+ > esptool.py --port /dev/ttyUSB0 --baud 115200 write_flash 0x10000 build/my-app.bin
+
+위 명령어를 사용하면 Binary app image build/my-app.bin는 offset 0x10000에 쓰여진다. 
+
+ > espsecure.py encrypt_flash_data --keyfile my_flash_encryption_key.bin --address 0x10000 -o build/my-app-encrypted.bin build/my-app.bin
+
+이 명령어는 supplied key를 사용하여 my-app.bin 파일을 암호화 하여 암호화된 파일 my-app-encrypted.bin 파일을 생성한다. address 인수가 바이너리를 플래싱 할 주소와 일치하는지 확인해라.
+
+확인 후 
+ > esptool.py --port /dev/ttyUSB0 --baud 115200 write_flash 0x10000 build/my-app-encrypted.bin
+
+ 위 명령어를 통해 flash에 data를 쓸 수 있다. 이 경우 우리가 flash할 데이터가 이미 암호화 되어 있기 때문에 efuse 조작이 필요한 단계를 생략할 수 있다.                                                                                                                                                                                        
+
+Disabling Flash Encryption
+-----------------------------------
+만약 실수로 flash 암호화를 활성화 했다면 다음 boot에서 지속적으로 flash read err, 1000이라는 에러가 출력이 될 것이다. 그럴경우 다음의 순서대로 암호화를 비활성화 할수 있다. 
+
+1. make menuconfig -> Enable flash encryption boot를 체크해제 한다.
+2. 메뉴를 종료하고 구성사항을 저장한다.
+3. make menuconfig 다시 한번 실행 후 -> disabled 옵션이 체크되어 있지 않은지 다시 확인한다.
+4. make flash를 실행한다 -> bootloader, app 등이 flash 암호화 활성화 없이 build되고 flash된다.
+5. espefuse.py를 실행하여 FLASH_CRYPT_CNT efuse를 비활성화 해라 :: burn_efuse FLASH_CRYPT_CNT       
+
+그러면 eps32가 reset되고 flash 암호화가 비활성화 되며 bootloader는 보통의 경우처럼 boot된다.
+
+Limitations of Flash Encryption
+------------------------------------
+Flash 암호화는 암호화 된 Flash의 Plaintext 판독을 방지하여 권한이없는 판독 및 수정으로부터 펌웨어를 보호한다.
+
+* flash 암호화는 키만큼 강력하다. 따라서 첫 번째 부팅시 장치에서 키를 생성하는 것이 좋다. 장치가 꺼진 상태에서 키를 생성하는 경우 (미리 생성 된 플래시 암호화 키로 새로 고침 참조) 올바른 방식으로 만들어라.
+* 모든 data가 암호화 되어 저장되는 것이 아니라 flash에 데이터를 저장하는 경우 사용중인 방법, data가 flash 암호화를 지원하는지 확인해라
+* 플래시 암호화는 침입자가 플래시의 상위 레벨 레이아웃을 이해하는 것을 방해하지 않습니다. 인접한 16 바이트 AES 블록의 모든 쌍에 대해 동일한 AES 키가 사용되기 때문입니다. 이러한 인접한 16 바이트 블록에 동일한 내용 (예 : 빈 영역 또는 패딩 영역)이 있으면이 블록이 암호화되어 암호화 된 블록 쌍을 일치시켜 생성합니다. 이것은 공격자가 암호화 된 장치를 상위 수준으로 비교할 수있게합니다 (예 : 두 장치가 동일한 펌웨어 버전을 실행하고 있는지 확인).
+* 같은 이유로 공격자는 인접한 16 바이트 블록 쌍 (32 바이트 정렬)에 동일한 내용이 포함되어 있는지 항상 알 수 있습니다. 민감한 데이터를 플래시에 저장하는 경우 플래시 메모리를 설계하여 카운터 바이트 또는 다른 16 비트가 아닌 다른 값을 사용하면 충분합니다.
+* 플래시 암호화만으로 공격자가 장치의 펌웨어를 수정할 수있는 것은 아닙니다. 장치에서 인증되지 않은 펌웨어가 실행되는 것을 방지하려면 Secure Boot와 함께 플래시 암호화를 사용하십시오.
+
 
 Burning a key
 ------------------------------------

@@ -60,7 +60,7 @@ PRO CPU가 start_cpu0 함수 안에서 초기화되는 동안 start_cpu1 함수�
 
 Main task는 app_main 함수가 실행되는 task이다. menuconfig에서 stack 사이즈와 우선순위를 설정할 수있다.
 
-Application memory layou
+Application memory layout
 -------------------------
 ESP32 chip은 flexible memory mapping 기능을 가지고 있으며 application code는 다음 메모리 공간중 한곳에 위치할 수 있다.
 
@@ -104,3 +104,4 @@ ISR에서 printf 및 다른 출력함수를 사용하는 것은 권장되지 않
 
 
 
+    
